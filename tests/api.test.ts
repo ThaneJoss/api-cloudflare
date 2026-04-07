@@ -123,7 +123,7 @@ describe('API contract', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
       env.CORS_ALLOW_ORIGIN,
     )
-    expect(body.data.timestamp).toBeTruthy()
+    expect(body.data.timestamp).toBe(new Date(body.data.timestamp).toISOString())
   })
 
   it('GET /api/services matches the list contract', async () => {
