@@ -1,15 +1,15 @@
 # api-cloudflare
 
-A serverless JSON API for `https://api.thanejoss.com/api`, built with Cloudflare Workers, Wrangler, Hono, and TypeScript.
+这是一个部署在 `https://api.thanejoss.com/api` 下的 Serverless JSON API，基于 Cloudflare Workers、Wrangler、Hono 和 TypeScript 构建。
 
-## Endpoints
+## 接口列表
 
 - `GET /api/health`
 - `GET /api/services`
 - `GET /api/apps`
 - `POST /api/contact`
 
-## Commands
+## 常用命令
 
 - `npm install`
 - `npm run dev`
@@ -18,14 +18,14 @@ A serverless JSON API for `https://api.thanejoss.com/api`, built with Cloudflare
 - `npm test`
 - `npm run deploy`
 
-## Environment
+## 环境变量
 
 - `CORS_ALLOW_ORIGIN`
-  - Default: `https://thanejoss.com`
-  - Supports comma-separated values for multiple allowed origins
+  - 默认值：`https://thanejoss.com`
+  - 支持用逗号分隔多个允许的来源
 
-## Deploy
+## 部署步骤
 
-1. Install dependencies with `npm install`
-2. Authenticate Wrangler with `npx wrangler login`
-3. Deploy with `npm run deploy`
+1. 使用 `npm install` 安装依赖
+2. 使用 `npx wrangler login` 完成 Wrangler 登录
+3. 使用 `npm run deploy` 部署到 Cloudflare Workers
