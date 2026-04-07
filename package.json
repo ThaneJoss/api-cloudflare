@@ -6,7 +6,6 @@
   "scripts": {
     "cf-typegen": "wrangler types",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
     "lint": "eslint .",
     "test": "npm run cf-typegen && vitest run",
     "test:watch": "npm run cf-typegen && vitest",
