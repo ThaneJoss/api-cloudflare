@@ -9,6 +9,12 @@
 - `GET /api/apps`
 - `POST /api/contact`
 
+## 数据存储
+
+- `POST /api/contact` 会把提交内容写入 Cloudflare D1
+- D1 绑定名为 `CONTACT_DB`
+- 绑定定义写在 `wrangler.toml`，作为 Worker 配置的一部分统一管理
+
 ## 常用命令
 
 - `npm install`

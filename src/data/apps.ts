@@ -12,7 +12,7 @@ export const apps: AppItem[] = [
     id: 'contact-intake',
     name: 'Contact Intake',
     url: 'https://api.thanejoss.com/api/contact',
-    description: 'Queue-backed contact intake workflow for inbound messages.',
+    description: 'D1-backed contact intake workflow for inbound messages.',
     status: 'beta',
   },
 ]
