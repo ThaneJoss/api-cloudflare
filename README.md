@@ -16,7 +16,6 @@
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`
-- `npm run deploy`
 
 ## 环境变量
 
@@ -24,8 +23,8 @@
   - 默认值：`https://thanejoss.com`
   - 支持用逗号分隔多个允许的来源
 
-## 部署步骤
+## 部署方式
 
-1. 使用 `npm install` 安装依赖
-2. 使用 `npx wrangler login` 完成 Wrangler 登录
-3. 使用 `npm run deploy` 部署到 Cloudflare Workers
+部署由 Cloudflare 通过已连接的 GitHub 仓库自动完成。
+
+`wrangler.toml` 仍然是 Worker 名称、路由、自定义域名、环境变量和运行时配置的唯一配置来源。
