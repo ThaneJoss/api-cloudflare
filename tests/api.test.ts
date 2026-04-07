@@ -32,6 +32,15 @@ interface ContactReceipt {
   status: 'queued'
 }
 
+interface StoredContactSubmission {
+  submission_id: string
+  name: string
+  email: string
+  message: string
+  status: 'queued'
+  received_at: string
+}
+
 describe('API contract', () => {
   it('GET /api/health returns 200', async () => {
     const response = await exports.default.fetch('http://example.com/api/health')
@@ -71,6 +80,11 @@ describe('API contract', () => {
   })
 
   it('POST /api/contact returns 202 for valid payloads', async () => {
+    const requestPayload = {
+      name: 'Thane Joss',
+      email: 'thane@example.com',
+      message: 'Need help with a serverless backend.',
+    }
     const response = await exports.default.fetch(
       new Request('http://example.com/api/contact', {
         method: 'POST',
@@ -78,14 +92,26 @@ describe('API contract', () => {
           'Content-Type': 'application/json',
           Origin: env.CORS_ALLOW_ORIGIN,
         },
-        body: JSON.stringify({
-          name: 'Thane Joss',
-          email: 'thane@example.com',
-          message: 'Need help with a serverless backend.',
-        }),
+        body: JSON.stringify(requestPayload),
       }),
     )
     const body = (await response.json()) as SuccessEnvelope<ContactReceipt>
+    const storedSubmission =
+      await env.CONTACT_DB.prepare(
+        `
+          SELECT
+            submission_id,
+            name,
+            email,
+            message,
+            status,
+            received_at
+          FROM contact_submissions
+          WHERE submission_id = ?
+        `,
+      )
+        .bind(body.data.submissionId)
+        .first<StoredContactSubmission>()
 
     expect(response.status).toBe(202)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
@@ -99,6 +125,14 @@ describe('API contract', () => {
     })
     expect(typeof body.data.submissionId).toBe('string')
     expect(typeof body.data.receivedAt).toBe('string')
+    expect(storedSubmission).toMatchObject({
+      submission_id: body.data.submissionId,
+      name: requestPayload.name,
+      email: requestPayload.email,
+      message: requestPayload.message,
+      status: body.data.status,
+      received_at: body.data.receivedAt,
+    })
   })
 
   it('POST /api/contact returns 400 for invalid JSON', async () => {
@@ -193,6 +227,7 @@ describe('API contract', () => {
     const response = await worker.fetch(
       request,
       {
+        ...env,
         CORS_ALLOW_ORIGIN:
           'https://thanejoss.com, https://admin.thanejoss.com',
       },
