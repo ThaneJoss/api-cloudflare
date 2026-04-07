@@ -1,0 +1,6 @@
+name = "api-cloudflare"
+main = "src/index.ts"
+compatibility_date = "2026-04-07"
+
+[vars]
+CORS_ALLOW_ORIGIN = "https://thanejoss.com"
