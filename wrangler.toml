@@ -9,6 +9,8 @@ custom_domain = true
 
 [[d1_databases]]
 binding = "CONTACT_DB"
+database_name = "api-cloudflare-contact-db"
+database_id = "8bb4e04c-9b21-47a4-a531-2077b1049e7b"
 
 [vars]
 CORS_ALLOW_ORIGIN = "https://thanejoss.com"
