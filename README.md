@@ -5,9 +5,16 @@
 ## 接口列表
 
 - `GET /api/health`
-- `GET /api/services`
-- `GET /api/apps`
 - `POST /api/contact`
+
+当前 API 只保留真正需要服务端承载的能力：
+
+- `GET /api/health`
+  - 用于验活和基础排障
+- `POST /api/contact`
+  - 校验 `name`、`email`、`message`
+  - 把提交内容写入 Cloudflare D1
+  - 返回排队回执
 
 ## 数据存储
 
