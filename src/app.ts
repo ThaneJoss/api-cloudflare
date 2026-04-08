@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
 
-import { appsRoute } from './routes/apps-route'
 import { contactRoute } from './routes/contact-route'
 import { healthRoute } from './routes/health-route'
-import { servicesRoute } from './routes/services-route'
 import { jsonError } from './lib/api-response'
 import { corsMiddleware } from './lib/cors'
 import type { AppBindings } from './lib/types'
@@ -14,8 +12,6 @@ export function createApp() {
 
   api.use('*', corsMiddleware())
   api.route('/health', healthRoute)
-  api.route('/services', servicesRoute)
-  api.route('/apps', appsRoute)
   api.route('/contact', contactRoute)
   api.notFound((c) =>
     jsonError(c, 404, {

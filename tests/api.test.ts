@@ -37,40 +37,6 @@ const healthEnvelopeSchema = z
   })
   .strict()
 
-const serviceItemSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    category: z.string().min(1),
-    description: z.string().min(1),
-    status: z.enum(['active', 'planned']),
-  })
-  .strict()
-
-const servicesEnvelopeSchema = z
-  .object({
-    success: z.literal(true),
-    data: z.array(serviceItemSchema).min(1),
-  })
-  .strict()
-
-const appItemSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    url: z.url(),
-    description: z.string().min(1),
-    status: z.enum(['active', 'beta']),
-  })
-  .strict()
-
-const appsEnvelopeSchema = z
-  .object({
-    success: z.literal(true),
-    data: z.array(appItemSchema).min(1),
-  })
-  .strict()
-
 const contactReceiptEnvelopeSchema = z
   .object({
     success: z.literal(true),
@@ -124,42 +90,6 @@ describe('API contract', () => {
       env.CORS_ALLOW_ORIGIN,
     )
     expect(body.data.timestamp).toBe(new Date(body.data.timestamp).toISOString())
-  })
-
-  it('GET /api/services matches the list contract', async () => {
-    const response = await exports.default.fetch(
-      new Request('http://example.com/api/services', {
-        headers: {
-          Origin: env.CORS_ALLOW_ORIGIN,
-        },
-      }),
-    )
-    const body = parseContract(servicesEnvelopeSchema, await response.json())
-    const uniqueIds = new Set(body.data.map((item) => item.id))
-
-    expectJsonResponse(response, 200)
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
-      env.CORS_ALLOW_ORIGIN,
-    )
-    expect(uniqueIds.size).toBe(body.data.length)
-  })
-
-  it('GET /api/apps matches the list contract', async () => {
-    const response = await exports.default.fetch(
-      new Request('http://example.com/api/apps', {
-        headers: {
-          Origin: env.CORS_ALLOW_ORIGIN,
-        },
-      }),
-    )
-    const body = parseContract(appsEnvelopeSchema, await response.json())
-    const uniqueIds = new Set(body.data.map((item) => item.id))
-
-    expectJsonResponse(response, 200)
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
-      env.CORS_ALLOW_ORIGIN,
-    )
-    expect(uniqueIds.size).toBe(body.data.length)
   })
 
   it('POST /api/contact matches the success receipt contract', async () => {
@@ -272,6 +202,22 @@ describe('API contract', () => {
         message: 'API route not found.',
       },
     })
+  })
+
+  it('returns the not found error contract for removed content endpoints', async () => {
+    for (const path of ['/api/services', '/api/apps']) {
+      const response = await exports.default.fetch(`http://example.com${path}`)
+      const body = parseContract(errorEnvelopeSchema, await response.json())
+
+      expectJsonResponse(response, 404)
+      expect(body).toEqual({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'API route not found.',
+        },
+      })
+    }
   })
 
   it('handles the allowed CORS preflight contract', async () => {
