@@ -4,32 +4,99 @@ import {
   waitOnExecutionContext,
 } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import worker from '../src/index'
 
-interface SuccessEnvelope<T> {
-  success: true
-  data: T
-}
+const isoTimestampSchema = z.string().refine((value) => {
+  return !Number.isNaN(Date.parse(value))
+}, 'Expected an ISO-compatible datetime string.')
 
-interface ErrorEnvelope {
-  success: false
-  error: {
-    code: string
-    message: string
+const errorEnvelopeSchema = z
+  .object({
+    success: z.literal(false),
+    error: z
+      .object({
+        code: z.string(),
+        message: z.string(),
+      })
+      .strict(),
+  })
+  .strict()
+
+const healthEnvelopeSchema = z
+  .object({
+    success: z.literal(true),
+    data: z
+      .object({
+        status: z.literal('ok'),
+        service: z.literal('api.thanejoss.com'),
+        timestamp: isoTimestampSchema,
+      })
+      .strict(),
+  })
+  .strict()
+
+const serviceItemSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    category: z.string().min(1),
+    description: z.string().min(1),
+    status: z.enum(['active', 'planned']),
+  })
+  .strict()
+
+const servicesEnvelopeSchema = z
+  .object({
+    success: z.literal(true),
+    data: z.array(serviceItemSchema).min(1),
+  })
+  .strict()
+
+const appItemSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    url: z.url(),
+    description: z.string().min(1),
+    status: z.enum(['active', 'beta']),
+  })
+  .strict()
+
+const appsEnvelopeSchema = z
+  .object({
+    success: z.literal(true),
+    data: z.array(appItemSchema).min(1),
+  })
+  .strict()
+
+const contactReceiptEnvelopeSchema = z
+  .object({
+    success: z.literal(true),
+    data: z
+      .object({
+        submissionId: z.uuid(),
+        receivedAt: isoTimestampSchema,
+        status: z.literal('queued'),
+      })
+      .strict(),
+  })
+  .strict()
+
+function parseContract<T>(schema: z.ZodType<T>, payload: unknown): T {
+  const result = schema.safeParse(payload)
+
+  if (!result.success) {
+    throw new Error(JSON.stringify(result.error.format(), null, 2))
   }
+
+  return result.data
 }
 
-interface HealthPayload {
-  status: 'ok'
-  service: string
-  timestamp: string
-}
-
-interface ContactReceipt {
-  submissionId: string
-  receivedAt: string
-  status: 'queued'
+function expectJsonResponse(response: Response, status: number) {
+  expect(response.status).toBe(status)
+  expect(response.headers.get('Content-Type')).toContain('application/json')
 }
 
 interface StoredContactSubmission {
@@ -42,44 +109,60 @@ interface StoredContactSubmission {
 }
 
 describe('API contract', () => {
-  it('GET /api/health returns 200', async () => {
-    const response = await exports.default.fetch('http://example.com/api/health')
-    const body = (await response.json()) as SuccessEnvelope<HealthPayload>
-
-    expect(response.status).toBe(200)
-    expect(body).toMatchObject({
-      success: true,
-      data: {
-        status: 'ok',
-        service: 'api.thanejoss.com',
-      },
-    })
-    expect(typeof body.data.timestamp).toBe('string')
-  })
-
-  it('GET /api/services returns 200', async () => {
+  it('GET /api/health matches the public contract', async () => {
     const response = await exports.default.fetch(
-      'http://example.com/api/services',
+      new Request('http://example.com/api/health', {
+        headers: {
+          Origin: env.CORS_ALLOW_ORIGIN,
+        },
+      }),
     )
-    const body = (await response.json()) as SuccessEnvelope<unknown[]>
+    const body = parseContract(healthEnvelopeSchema, await response.json())
 
-    expect(response.status).toBe(200)
-    expect(body.success).toBe(true)
-    expect(Array.isArray(body.data)).toBe(true)
-    expect(body.data.length).toBeGreaterThan(0)
+    expectJsonResponse(response, 200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
+      env.CORS_ALLOW_ORIGIN,
+    )
+    expect(body.data.timestamp).toBe(new Date(body.data.timestamp).toISOString())
   })
 
-  it('GET /api/apps returns 200', async () => {
-    const response = await exports.default.fetch('http://example.com/api/apps')
-    const body = (await response.json()) as SuccessEnvelope<unknown[]>
+  it('GET /api/services matches the list contract', async () => {
+    const response = await exports.default.fetch(
+      new Request('http://example.com/api/services', {
+        headers: {
+          Origin: env.CORS_ALLOW_ORIGIN,
+        },
+      }),
+    )
+    const body = parseContract(servicesEnvelopeSchema, await response.json())
+    const uniqueIds = new Set(body.data.map((item) => item.id))
 
-    expect(response.status).toBe(200)
-    expect(body.success).toBe(true)
-    expect(Array.isArray(body.data)).toBe(true)
-    expect(body.data.length).toBeGreaterThan(0)
+    expectJsonResponse(response, 200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
+      env.CORS_ALLOW_ORIGIN,
+    )
+    expect(uniqueIds.size).toBe(body.data.length)
   })
 
-  it('POST /api/contact returns 202 for valid payloads', async () => {
+  it('GET /api/apps matches the list contract', async () => {
+    const response = await exports.default.fetch(
+      new Request('http://example.com/api/apps', {
+        headers: {
+          Origin: env.CORS_ALLOW_ORIGIN,
+        },
+      }),
+    )
+    const body = parseContract(appsEnvelopeSchema, await response.json())
+    const uniqueIds = new Set(body.data.map((item) => item.id))
+
+    expectJsonResponse(response, 200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
+      env.CORS_ALLOW_ORIGIN,
+    )
+    expect(uniqueIds.size).toBe(body.data.length)
+  })
+
+  it('POST /api/contact matches the success receipt contract', async () => {
     const requestPayload = {
       name: 'Thane Joss',
       email: 'thane@example.com',
@@ -95,7 +178,10 @@ describe('API contract', () => {
         body: JSON.stringify(requestPayload),
       }),
     )
-    const body = (await response.json()) as SuccessEnvelope<ContactReceipt>
+    const body = parseContract(
+      contactReceiptEnvelopeSchema,
+      await response.json(),
+    )
     const storedSubmission =
       await env.CONTACT_DB.prepare(
         `
@@ -113,18 +199,11 @@ describe('API contract', () => {
         .bind(body.data.submissionId)
         .first<StoredContactSubmission>()
 
-    expect(response.status).toBe(202)
+    expectJsonResponse(response, 202)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
       env.CORS_ALLOW_ORIGIN,
     )
-    expect(body).toMatchObject({
-      success: true,
-      data: {
-        status: 'queued',
-      },
-    })
-    expect(typeof body.data.submissionId).toBe('string')
-    expect(typeof body.data.receivedAt).toBe('string')
+    expect(body.data.status).toBe('queued')
     expect(storedSubmission).toMatchObject({
       submission_id: body.data.submissionId,
       name: requestPayload.name,
@@ -135,7 +214,7 @@ describe('API contract', () => {
     })
   })
 
-  it('POST /api/contact returns 400 for invalid JSON', async () => {
+  it('POST /api/contact returns the invalid JSON error contract', async () => {
     const response = await exports.default.fetch(
       new Request('http://example.com/api/contact', {
         method: 'POST',
@@ -143,9 +222,10 @@ describe('API contract', () => {
         body: '{"name":"broken"',
       }),
     )
+    const body = parseContract(errorEnvelopeSchema, await response.json())
 
-    expect(response.status).toBe(400)
-    await expect(response.json<ErrorEnvelope>()).resolves.toEqual({
+    expectJsonResponse(response, 400)
+    expect(body).toEqual({
       success: false,
       error: {
         code: 'INVALID_JSON',
@@ -154,7 +234,7 @@ describe('API contract', () => {
     })
   })
 
-  it('POST /api/contact returns 400 for validation failures', async () => {
+  it('POST /api/contact returns the validation error contract', async () => {
     const response = await exports.default.fetch(
       new Request('http://example.com/api/contact', {
         method: 'POST',
@@ -166,9 +246,10 @@ describe('API contract', () => {
         }),
       }),
     )
+    const body = parseContract(errorEnvelopeSchema, await response.json())
 
-    expect(response.status).toBe(400)
-    await expect(response.json<ErrorEnvelope>()).resolves.toEqual({
+    expectJsonResponse(response, 400)
+    expect(body).toEqual({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
@@ -177,13 +258,14 @@ describe('API contract', () => {
     })
   })
 
-  it('returns 404 for unknown /api routes', async () => {
+  it('returns the not found error contract for unknown /api routes', async () => {
     const response = await exports.default.fetch(
       'http://example.com/api/unknown-route',
     )
+    const body = parseContract(errorEnvelopeSchema, await response.json())
 
-    expect(response.status).toBe(404)
-    await expect(response.json<ErrorEnvelope>()).resolves.toEqual({
+    expectJsonResponse(response, 404)
+    expect(body).toEqual({
       success: false,
       error: {
         code: 'NOT_FOUND',
@@ -192,7 +274,7 @@ describe('API contract', () => {
     })
   })
 
-  it('handles CORS for https://thanejoss.com', async () => {
+  it('handles the allowed CORS preflight contract', async () => {
     const response = await exports.default.fetch(
       new Request('http://example.com/api/contact', {
         method: 'OPTIONS',
@@ -205,6 +287,7 @@ describe('API contract', () => {
     )
 
     expect(response.status).toBe(204)
+    expect(await response.text()).toBe('')
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
       'https://thanejoss.com',
     )
@@ -215,6 +298,31 @@ describe('API contract', () => {
       'Content-Type',
     )
     expect(response.headers.get('Vary')).toContain('Origin')
+  })
+
+  it('handles the denied CORS preflight contract', async () => {
+    const response = await exports.default.fetch(
+      new Request('http://example.com/api/contact', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://evil.thanejoss.com',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'Content-Type',
+        },
+      }),
+    )
+    const body = parseContract(errorEnvelopeSchema, await response.json())
+
+    expectJsonResponse(response, 403)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
+    expect(response.headers.get('Vary')).toContain('Origin')
+    expect(body).toEqual({
+      success: false,
+      error: {
+        code: 'CORS_ORIGIN_DENIED',
+        message: 'Origin is not allowed.',
+      },
+    })
   })
 
   it('supports comma-separated CORS_ALLOW_ORIGIN values', async () => {
@@ -236,6 +344,7 @@ describe('API contract', () => {
 
     await waitOnExecutionContext(ctx)
 
+    expectJsonResponse(response, 200)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
       'https://admin.thanejoss.com',
     )
